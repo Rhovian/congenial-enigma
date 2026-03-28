@@ -1,20 +1,16 @@
 export const BS = 2;
-export const M = 4;
-export const N = 4;
-export const K = 4;
+export const M = 2;
+export const N = 2;
+export const K = 2;
 
 export const A = [
-  [1, 2, 3, 4],
-  [5, 6, 7, 8],
-  [9, 10, 11, 12],
-  [13, 14, 15, 16],
+  [1, 2],
+  [3, 4],
 ];
 
 export const B = [
-  [1, 0, 0, 1],
-  [0, 1, 1, 0],
-  [1, 1, 0, 0],
-  [0, 0, 1, 1],
+  [5, 6],
+  [7, 8],
 ];
 
 export function mm(A, B) {

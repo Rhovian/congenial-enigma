@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { A, B, C_ref, BS } from '../data/matrices';
+import { A, B, C_ref, BS, M } from '../data/matrices';
 import MatrixGrid from './MatrixGrid';
 import SmemGrid from './SmemGrid';
 import CodePanel from './CodePanel';
@@ -53,7 +53,7 @@ export default function KernelStepper({ kernel }) {
   const showC = currentStep.showResult;
   const CD = showC
     ? C_ref
-    : Array.from({ length: 4 }, () => Array(4).fill('·'));
+    : Array.from({ length: M }, () => Array(M).fill('·'));
 
   const derivContent = derivPopup && currentStep.derivPopup
     ? currentStep.derivPopup(derivPopup, block)
@@ -92,7 +92,7 @@ export default function KernelStepper({ kernel }) {
           <div className="matrices">
             <div className="mat-group">
               <div className="mat-title">A</div>
-              <MatrixGrid mat="A" data={A} cellClass={cellClass} />
+              <MatrixGrid mat="A" data={A} cellClass={cellClass} size={M} />
             </div>
             <div
               style={{
@@ -105,7 +105,7 @@ export default function KernelStepper({ kernel }) {
             </div>
             <div className="mat-group">
               <div className="mat-title">B</div>
-              <MatrixGrid mat="B" data={B} cellClass={cellClass} />
+              <MatrixGrid mat="B" data={B} cellClass={cellClass} size={M} />
             </div>
             <div
               style={{
@@ -118,7 +118,7 @@ export default function KernelStepper({ kernel }) {
             </div>
             <div className="mat-group">
               <div className="mat-title">C</div>
-              <MatrixGrid mat="C" data={CD} cellClass={cellClass} />
+              <MatrixGrid mat="C" data={CD} cellClass={cellClass} size={M} />
             </div>
           </div>
 

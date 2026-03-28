@@ -1,4 +1,4 @@
-import { BS, K, N, C_ref } from '../data/matrices';
+import { A, B, BS, K, N } from '../data/matrices';
 
 const codeLines = [
   '__global__ void sgemm_smem(int M, int N, int K,',
@@ -45,8 +45,6 @@ const codeLines = [
 const stepHighlights = [
   [4, 5, 7, 8],
   [10, 11, 15, 16, 18, 19, 21, 22, 24],
-  [26, 27, 28, 29, 31],
-  [15, 16, 18, 19, 21, 22, 24],
   [26, 27, 28, 29, 31],
   [34, 35, 36],
 ];
@@ -128,32 +126,39 @@ function derivContent(which, block, tileK) {
       title: 'As load derivation',
       body: (
         <>
+          <div className="deriv-label">General row-major formula</div>
+          <div className="deriv-step">
+            A[<span className="deriv-highlight">row</span> * num_cols + <span className="deriv-highlight">col</span>]
+          </div>
+
           <div className="deriv-label">Kernel code</div>
           <div className="deriv-step">
             As[threadRow][threadCol] = A[tx * K + tileIdx + threadCol]
           </div>
-          <div className="deriv-label">
-            Expand tx = blockIdx.x * BS + threadRow
-          </div>
-          <div className="deriv-step">
-            = A[({br}*{BS} + r) * {K} + {tileIdx} + c]
-          </div>
-          <div className="deriv-label">Simplify</div>
-          <div className="deriv-step">
-            = A[({br * BS} + r) * {K} + {tileIdx} + c]
-          </div>
-          <div className="deriv-label">Read as 2D indexing: A[row][col]</div>
-          <div className="deriv-step">
-            = A[<span className="deriv-highlight">{br * BS}+r</span>][
-            <span className="deriv-highlight">{tileIdx}+c</span>]
-          </div>
-          <div className="deriv-label">Meaning</div>
+
+          <div className="deriv-label">Mapping — working right to left</div>
           <div className="deriv-step" style={{ fontFamily: 'var(--font-sans)' }}>
-            Row from <span className="deriv-highlight">block position</span>{' '}
-            (rows {br * BS}–{br * BS + BS - 1})
-            <br />
-            Col from <span className="deriv-highlight">tile position</span>{' '}
-            (cols {tileIdx}–{tileIdx + BS - 1})
+            <span className="deriv-highlight">row = tx</span> — the global row this thread is responsible for.
+            The stride is K ({K}) — the number of columns in A (since A is M×K).
+            So tx * K gets you to the start of row tx in the flat array.
+            <br /><br />
+            <span className="deriv-highlight">col = tileIdx + threadCol</span> — within that row,
+            tileIdx ({tileIdx}) is where the current tile starts along K,
+            and threadCol is this thread's position within the tile.
+          </div>
+
+          <div className="deriv-label">Substituting for block ({br},{bc})</div>
+          <div className="deriv-step">
+            row = tx = blockIdx.x * BS + threadRow = {br}*{BS} + r = <span className="deriv-highlight">{br*BS}+r</span>
+          </div>
+          <div className="deriv-step">
+            col = tileIdx + threadCol = <span className="deriv-highlight">{tileIdx}+c</span>
+          </div>
+
+          <div className="deriv-label">Result</div>
+          <div className="deriv-step">
+            As[r][c] = A[<span className="deriv-highlight">{br*BS}+r</span>][<span className="deriv-highlight">{tileIdx}+c</span>]
+            {' '}→ rows {br*BS}–{br*BS+BS-1}, cols {tileIdx}–{tileIdx+BS-1}
           </div>
         </>
       ),
@@ -164,33 +169,107 @@ function derivContent(which, block, tileK) {
     title: 'Bs load derivation',
     body: (
       <>
+        <div className="deriv-label">General row-major formula</div>
+        <div className="deriv-step">
+          B[<span className="deriv-highlight">row</span> * num_cols + <span className="deriv-highlight">col</span>]
+        </div>
+
         <div className="deriv-label">Kernel code</div>
         <div className="deriv-step">
           Bs[threadRow][threadCol] = B[(tileIdx + threadRow) * N + ty]
         </div>
-        <div className="deriv-label">
-          Expand ty = blockIdx.y * BS + threadCol
-        </div>
-        <div className="deriv-step">
-          = B[({tileIdx} + r) * {N} + {bc}*{BS} + c]
-        </div>
-        <div className="deriv-label">Simplify</div>
-        <div className="deriv-step">
-          = B[({tileIdx} + r) * {N} + {bc * BS} + c]
-        </div>
-        <div className="deriv-label">Read as 2D indexing: B[row][col]</div>
-        <div className="deriv-step">
-          = B[<span className="deriv-highlight">{tileIdx}+r</span>][
-          <span className="deriv-highlight">{bc * BS}+c</span>]
-        </div>
-        <div className="deriv-label">Meaning</div>
+
+        <div className="deriv-label">Mapping — working right to left</div>
         <div className="deriv-step" style={{ fontFamily: 'var(--font-sans)' }}>
-          Row from <span className="deriv-highlight">tile position</span> (rows{' '}
-          {tileIdx}–{tileIdx + BS - 1})
-          <br />
-          Col from <span className="deriv-highlight">block position</span> (cols{' '}
-          {bc * BS}–{bc * BS + BS - 1})
+          <span className="deriv-highlight">row = tileIdx + threadRow</span> — the row comes from the tile position along K ({tileIdx}),
+          offset by this thread's row within the tile.
+          The stride is N ({N}) — the number of columns in B (since B is K×N).
+          <br /><br />
+          <span className="deriv-highlight">col = ty</span> — the global column this thread is responsible for.
+          ty = blockIdx.y * BS + threadCol, so the column comes from the block's horizontal position.
         </div>
+
+        <div className="deriv-label">Substituting for block ({br},{bc})</div>
+        <div className="deriv-step">
+          row = tileIdx + threadRow = <span className="deriv-highlight">{tileIdx}+r</span>
+        </div>
+        <div className="deriv-step">
+          col = ty = blockIdx.y * BS + threadCol = {bc}*{BS} + c = <span className="deriv-highlight">{bc*BS}+c</span>
+        </div>
+
+        <div className="deriv-label">Result</div>
+        <div className="deriv-step">
+          Bs[r][c] = B[<span className="deriv-highlight">{tileIdx}+r</span>][<span className="deriv-highlight">{bc*BS}+c</span>]
+          {' '}→ rows {tileIdx}–{tileIdx+BS-1}, cols {bc*BS}–{bc*BS+BS-1}
+        </div>
+      </>
+    ),
+  };
+}
+
+function accumDerivContent(block, tileK) {
+  const [br, bc] = block;
+  const r0 = br * BS, c0 = bc * BS;
+  const kS = tileK * BS;
+
+  // Build the example for thread (0,0)
+  const asVals = Array.from({ length: BS }, (_, c) => A[r0][kS + c]);
+  const bsVals = Array.from({ length: BS }, (_, r) => B[kS + r][c0]);
+  const terms = asVals.map((a, i) => ({ a, b: bsVals[i] }));
+  const result = terms.reduce((sum, t) => sum + t.a * t.b, 0);
+
+  return {
+    title: `Accumulate derivation — K-tile ${tileK}`,
+    body: (
+      <>
+        <div className="deriv-label">Kernel code</div>
+        <div className="deriv-step">
+          {'for (int i = 0; i < BLOCK_SIZE; i++)'}<br />
+          {'  tmp += As[threadRow][i] * Bs[i][threadCol];'}
+        </div>
+
+        <div className="deriv-label">What this does</div>
+        <div className="deriv-step" style={{ fontFamily: 'var(--font-sans)' }}>
+          Each thread computes a partial dot product from shared memory.
+          Thread (threadRow, threadCol) reads its <span className="deriv-highlight">row</span> from
+          As and its <span className="deriv-highlight">column</span> from Bs,
+          iterating over the shared dimension (i = 0..{BS - 1}).
+        </div>
+
+        <div className="deriv-label">As and Bs contents (block {br},{bc}, tile {tileK})</div>
+        <div className="deriv-step" style={{ fontFamily: 'var(--font-sans)' }}>
+          As = A[rows {r0}–{r0 + BS - 1}][cols {kS}–{kS + BS - 1}]<br />
+          Bs = B[rows {kS}–{kS + BS - 1}][cols {c0}–{c0 + BS - 1}]
+        </div>
+
+        <div className="deriv-label">Example: thread (0,0) → tmp[0][0]</div>
+        <div className="deriv-step">
+          {terms.map((t, i) => (
+            <span key={i}>
+              {i > 0 && ' + '}
+              As[0][{i}] * Bs[{i}][0] = <span className="deriv-highlight">{t.a}×{t.b}</span>
+            </span>
+          ))}
+          {' = '}<span className="deriv-highlight">{result}</span>
+        </div>
+
+        <div className="deriv-label">All threads in this block</div>
+        {Array.from({ length: BS }, (_, tr) =>
+          Array.from({ length: BS }, (_, tc) => {
+            const vals = Array.from({ length: BS }, (_, i) => ({
+              a: A[r0 + tr][kS + i],
+              b: B[kS + i][c0 + tc],
+            }));
+            const sum = vals.reduce((s, v) => s + v.a * v.b, 0);
+            return (
+              <div className="deriv-step" key={`${tr}-${tc}`}>
+                tmp[{tr}][{tc}] += {vals.map((v, i) => (
+                  <span key={i}>{i > 0 && '+'}{v.a}×{v.b}</span>
+                ))} = <span className="deriv-highlight">{sum}</span>
+              </div>
+            );
+          })
+        )}
       </>
     ),
   };
@@ -247,14 +326,12 @@ const steps = [
     cellClass: makeCellClass('grid'),
     sharedMemory: null,
     showResult: false,
-    description: (block) => {
-      const [br, bc] = block;
-      const r0 = br * BS, c0 = bc * BS;
+    description: () => {
       return (
         <>
-          <b>Grid decomposition.</b> Block ({br},{bc}) → output rows {r0}–
-          {r0 + BS - 1}, cols {c0}–{c0 + BS - 1}. {BS * BS} threads
-          decomposed: <code>threadRow = threadIdx.x/{BS}</code>,{' '}
+          <b>Grid decomposition.</b> Single block (0,0) covers the entire 2×2
+          output. {BS * BS} threads decomposed:{' '}
+          <code>threadRow = threadIdx.x/{BS}</code>,{' '}
           <code>threadCol = threadIdx.x%{BS}</code>.
         </>
       );
@@ -275,12 +352,13 @@ const steps = [
           const v =
             A[r0 + tr][0] * B[0][c0 + tc] + A[r0 + tr][1] * B[1][c0 + tc];
           lines.push(
-            `tmp[${tr}][${tc}] += ${A[r0 + tr][0]}×${B[0][c0 + tc]}+${A[r0 + tr][1]}×${B[1][c0 + tc]} = ${v}`
+            `tmp[${tr}][${tc}] = ${A[r0 + tr][0]}×${B[0][c0 + tc]}+${A[r0 + tr][1]}×${B[1][c0 + tc]} = ${v}`
           );
         }
       return (
         <>
-          <b>K-tile 0: accumulate from SMEM.</b>
+          <b>Accumulate from SMEM.</b> Completes the dot product (single tile
+          covers all of K={K}).
           <br />
           <code>
             {lines.map((l, i) => (
@@ -291,44 +369,22 @@ const steps = [
             ))}
           </code>
           <code>__syncthreads()</code>
-        </>
-      );
-    },
-  },
-  makeLoadStep(1),
-  {
-    id: 'accum1',
-    cellClass: makeCellClass('accum1'),
-    sharedMemory: makeSharedMemory('accum1'),
-    showResult: false,
-    description: (block, A, B) => {
-      const [br, bc] = block;
-      const r0 = br * BS, c0 = bc * BS;
-      const lines = [];
-      for (let tr = 0; tr < BS; tr++)
-        for (let tc = 0; tc < BS; tc++) {
-          const prev =
-            A[r0 + tr][0] * B[0][c0 + tc] + A[r0 + tr][1] * B[1][c0 + tc];
-          const add =
-            A[r0 + tr][2] * B[2][c0 + tc] + A[r0 + tr][3] * B[3][c0 + tc];
-          lines.push(`tmp[${tr}][${tc}] = ${prev}+${add} = ${prev + add}`);
-        }
-      return (
-        <>
-          <b>K-tile 1: accumulate.</b> Completes the dot product.
           <br />
-          <code>
-            {lines.map((l, i) => (
-              <span key={i}>
-                {l}
-                <br />
-              </span>
-            ))}
-          </code>
-          K exhausted (2 tiles × {BS} = {K}).
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+            Click below to see how tmp is computed.
+          </span>
         </>
       );
     },
+    extraContent: (block, onShowDeriv) => (
+      <>
+        <br />
+        <span className="deriv-link" onClick={() => onShowDeriv('accum')}>
+          How is tmp accumulated from As and Bs?
+        </span>
+      </>
+    ),
+    derivPopup: (which, block) => accumDerivContent(block, 0),
   },
   {
     id: 'write',
@@ -355,9 +411,9 @@ const steps = [
 
 export default {
   id: 'smem-tiling',
-  title: 'SMEM Tiling GEMM — 4×4 matrices, BLOCK_SIZE=2',
+  title: 'SMEM Tiling GEMM',
   codeLines,
   stepHighlights,
   steps,
-  hasBlocks: true,
+  hasBlocks: false,
 };
